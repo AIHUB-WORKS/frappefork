@@ -62,6 +62,12 @@ def get_logger(
 	logger.setLevel(frappe.log_level or default_log_level)
 	logger.propagate = False
 
+	# Python keeps named loggers globally even when frappe.loggers is reset.
+	# Reuse their handlers so a cache reset cannot leak another file descriptor.
+	if logger.handlers:
+		frappe.loggers[logger_name] = logger
+		return logger
+
 	formatter = logging.Formatter(f"%(asctime)s %(levelname)s {module} %(message)s")
 	if stream_only:
 		handler = logging.StreamHandler()
