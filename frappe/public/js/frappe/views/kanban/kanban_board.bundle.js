@@ -157,7 +157,7 @@ frappe.provide("frappe.views");
 				}
 				context.commit("update_state", { cards: cards });
 			},
-			update_order_for_single_card: function (context, card) {
+			update_order_for_single_card: async function (context, card) {
 				// cache original order
 				const _cards = context.state.cards.slice();
 				const _columns = context.state.columns.slice();
@@ -182,8 +182,41 @@ frappe.provide("frappe.views");
 						new_index: card.new_index,
 					};
 				}
+
+				const before_move = frappe.views.before_kanban_card_move;
+				if (typeof before_move === "function") {
+					try {
+						const result = await before_move({
+							doctype: context.state.doctype,
+							board: context.state.board,
+							card,
+							method_name,
+							args: { ...args },
+						});
+
+						if (result === false || result?.cancelled) {
+							context.commit("update_state", {
+								cards: _cards,
+								columns: _columns,
+							});
+							return;
+						}
+
+						if (result?.args) {
+							args = { ...args, ...result.args };
+						}
+					} catch (error) {
+						context.commit("update_state", {
+							cards: _cards,
+							columns: _columns,
+						});
+						console.error(error);
+						return;
+					}
+				}
+
 				frappe.dom.freeze();
-				frappe
+				return frappe
 					.call({
 						method: method_prefix + method_name,
 						args: args,
